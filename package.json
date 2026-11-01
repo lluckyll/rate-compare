@@ -1,0 +1,6 @@
+{
+  "name": "rate-compare",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" }
+}
