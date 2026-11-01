@@ -33,6 +33,8 @@ export default async function handler(req, res) {
       page++;
     } while (page <= maxPage && page <= 10);
 
+    // 금감원 응답의 회사명 필드는 kor_co_nm → 화면에서 쓰는 fin_co_nm으로 맞춤
+    baseList.forEach(b => { b.fin_co_nm = b.fin_co_nm || b.kor_co_nm; });
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ baseList, optionList });
   } catch (e) {
