@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>금리 비교 노트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 상단 기준금리 요약 → 탭(예금·적금·대출·정책대출) → 탭별 필터 + 기준금리 대비 막대 목록 */
+:root{
+  --paper:#f4f5f1;
+  --card:#ffffff;
+  --ink:#16223a;
+  --muted:#5d6676;
+  --line:#dfe2dc;
+  --accent:#0e6b6b;
+  --accent-soft:#dcefed;
+  --mark:#c47a1e;
+  --mark-soft:#f7ead6;
+  --good:#2d7a3e;
+  --bad:#b23b3b;
+  --font-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#11161f;--card:#19202b;--ink:#e7ebf0;--muted:#9aa4b2;--line:#2a3340;
+    --accent:#4fb8b0;--accent-soft:#1d3536;--mark:#e3a24f;--mark-soft:#3a2e1d;
+    --good:#6cc27f;--bad:#e27a7a;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11161f;--card:#19202b;--ink:#e7ebf0;--muted:#9aa4b2;--line:#2a3340;
+  --accent:#4fb8b0;--accent-soft:#1d3536;--mark:#e3a24f;--mark-soft:#3a2e1d;
+  --good:#6cc27f;--bad:#e27a7a;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.55}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:22px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:600}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--mark-soft);color:var(--mark)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+
+/* 기준금리 카드 */
+.base{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.base .big{font-size:40px;font-weight:600;line-height:1;color:var(--mark)}
+.base .lbl{font-size:13px;color:var(--muted);margin-bottom:6px}
+.base svg{width:100%;height:96px;display:block}
+@media (max-width:520px){.base{grid-template-columns:1fr}}
+
+/* 탭 */
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{appearance:none;border:0;background:none;font:inherit;font-weight:600;color:var(--muted);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.panel{display:flex;flex-direction:column;gap:14px}
+.panel[hidden]{display:none}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.field input,.field select{font:inherit;font-size:15px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+.field input[type="number"]{width:130px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:14px;border:0;background:var(--paper);color:var(--ink);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.check{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:14px}
+
+/* 상품 목록 */
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:6px 12px}
+.row .name{font-weight:600}
+.row .bank{font-size:13px;color:var(--muted)}
+.row .rate{text-align:right}
+.row .rate b{font-size:20px;font-weight:600;color:var(--accent)}
+.row .rate .basic{display:block;font-size:12px;color:var(--muted)}
+.bar{grid-column:1/-1;position:relative;height:8px;border-radius:4px;background:var(--paper)}
+.bar .fill{position:absolute;inset:0 auto 0 0;border-radius:4px;background:var(--accent-soft)}
+.bar .fill.max{background:var(--accent)}
+.bar .baseline{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--mark)}
+.meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;font-size:13px;color:var(--muted)}
+.pill{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--paper);border:1px solid var(--line);color:var(--ink)}
+.pill.gap{background:var(--mark-soft);border-color:transparent;color:var(--mark);font-weight:600}
+details{grid-column:1/-1;font-size:13px}
+details summary{cursor:pointer;color:var(--accent);font-weight:500}
+details ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:8px;border-radius:2px;vertical-align:middle;margin-right:4px}
+
+/* 정책대출 */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px;width:100%}
+.pgrid .field input,.pgrid .field select{width:100%}
+.pcard{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--good);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.pcard.no{border-left-color:var(--line);opacity:.78}
+.pcard .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.status{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+.status.ok{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.status.ng{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.pcard .rate b{font-size:22px;color:var(--accent);font-weight:600}
+.reasons{margin:0;padding-left:18px;font-size:13px;color:var(--muted)}
+.calc{background:var(--accent-soft);border-radius:12px;padding:12px 14px;font-size:14px}
+.calc b{font-family:var(--font-num)}
+footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+@media (prefers-reduced-motion:no-preference){.bar .fill{transition:width .3s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>금리 비교 노트</h1>
+    <span class="chip" id="dataChip">샘플 데이터 · 실제 금리 아님</span>
+  </header>
+
+  <section class="base" aria-label="한국은행 기준금리">
+    <div>
+      <div class="lbl">한국은행 기준금리</div>
+      <div class="big num" id="baseNow">2.50%</div>
+      <div class="small muted" id="baseInfo"></div>
+    </div>
+    <svg id="baseChart" viewBox="0 0 520 96" preserveAspectRatio="none" role="img" aria-label="기준금리 추이"></svg>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="deposit" aria-selected="true">정기예금</button>
+    <button class="tab" role="tab" data-tab="savings" aria-selected="false">적금</button>
+    <button class="tab" role="tab" data-tab="loan" aria-selected="false">대출</button>
+    <button class="tab" role="tab" data-tab="policy" aria-selected="false">정책대출</button>
+  </nav>
+
+  <!-- 정기예금 -->
+  <section class="panel" id="panel-deposit">
+    <div class="controls">
+      <div class="field">기간
+        <div class="seg" id="depTerm">
+          <button data-v="6" aria-pressed="false">6개월</button>
+          <button data-v="12" aria-pressed="true">12개월</button>
+          <button data-v="24" aria-pressed="false">24개월</button>
+        </div>
+      </div>
+      <label class="field" for="depAmt">예치금액(만원)
+        <input id="depAmt" type="number" min="0" step="100" value="1000">
+      </label>
+      <label class="field" for="depSort">정렬
+        <select id="depSort"><option value="max">최고금리 순</option><option value="basic">기본금리 순</option></select>
+      </label>
+    </div>
+    <div class="legend"><span><i style="background:var(--accent-soft)"></i>기본금리</span><span><i style="background:var(--accent)"></i>우대 포함 최고금리</span><span><i style="background:var(--mark);width:3px"></i>기준금리</span></div>
+    <div class="list" id="depList"></div>
+  </section>
+
+  <!-- 적금 -->
+  <section class="panel" id="panel-savings" hidden>
+    <div class="controls">
+      <div class="field">기간
+        <div class="seg" id="savTerm">
+          <button data-v="6" aria-pressed="false">6개월</button>
+          <button data-v="12" aria-pressed="true">12개월</button>
+          <button data-v="24" aria-pressed="false">24개월</button>
+        </div>
+      </div>
+      <label class="field" for="savAmt">월 납입액(만원)
+        <input id="savAmt" type="number" min="0" step="5" value="50">
+      </label>
+    </div>
+    <div class="legend"><span><i style="background:var(--accent-soft)"></i>기본금리</span><span><i style="background:var(--accent)"></i>우대 포함 최고금리</span><span><i style="background:var(--mark);width:3px"></i>기준금리</span></div>
+    <div class="list" id="savList"></div>
+  </section>
+
+  <!-- 대출 -->
+  <section class="panel" id="panel-loan" hidden>
+    <div class="controls">
+      <div class="field">종류
+        <div class="seg" id="loanType">
+          <button data-v="mortgage" aria-pressed="true">주택담보</button>
+          <button data-v="jeonse" aria-pressed="false">전세자금</button>
+          <button data-v="credit" aria-pressed="false">신용</button>
+        </div>
+      </div>
+      <label class="field" for="loanAmt">대출금액(만원)
+        <input id="loanAmt" type="number" min="0" step="500" value="20000">
+      </label>
+      <label class="field" for="loanYears">기간(년)
+        <input id="loanYears" type="number" min="1" max="40" value="30">
+      </label>
+    </div>
+    <div class="legend"><span><i style="background:var(--accent-soft)"></i>최저~최고 금리 범위</span><span><i style="background:var(--accent)"></i>전월 평균</span><span><i style="background:var(--mark);width:3px"></i>기준금리</span></div>
+    <div class="list" id="loanList"></div>
+  </section>
+
+  <!-- 정책대출 -->
+  <section class="panel" id="panel-policy" hidden>
+    <div class="controls">
+      <div class="pgrid">
+        <label class="field" for="pPurpose">목적
+          <select id="pPurpose"><option value="buy">집 구입</option><option value="jeonse">전세</option></select>
+        </label>
+        <label class="field" for="pIncome">부부합산 연소득(만원)
+          <input id="pIncome" type="number" min="0" step="100" value="7000">
+        </label>
+        <label class="field" for="pPrice">주택가격·보증금(만원)
+          <input id="pPrice" type="number" min="0" step="1000" value="45000">
+        </label>
+        <label class="field" for="pKids">자녀 수
+          <select id="pKids"><option>0</option><option>1</option><option>2</option><option selected>3</option></select>
+        </label>
+        <label class="field" for="pAge">본인 나이(만)
+          <input id="pAge" type="number" min="19" max="80" value="37">
+        </label>
+        <label class="field" for="pRegion">지역
+          <select id="pRegion"><option value="local" selected>비수도권</option><option value="metro">수도권</option></select>
+        </label>
+      </div>
+      <label class="field check" for="pHomeless"><input id="pHomeless" type="checkbox" checked>무주택 세대주</label>
+      <label class="field check" for="pFirst"><input id="pFirst" type="checkbox">생애최초 구입</label>
+      <label class="field check" for="pNewlywed"><input id="pNewlywed" type="checkbox">신혼(혼인 7년 이내)</label>
+      <label class="field check" for="pBaby"><input id="pBaby" type="checkbox">2년 내 출산</label>
+    </div>
+    <div class="list" id="policyList"></div>
+  </section>
+
+  <footer id="footer">
+    <p id="srcNote">화면 확인용 샘플 데이터입니다. 은행 이름과 상품 구성은 예시이며 금리·조건은 실제와 다릅니다.</p>
+    <p>기준금리: 한국은행 경제통계시스템(ECOS). 예·적금·대출: 금융상품통합비교공시시스템(금융감독원) 금융회사 상품정보. 정책대출: 주택도시기금·한국주택금융공사 공고를 정리한 참고값으로, 실제 조건은 기관 공고를 확인하세요.</p>
+  </footer>
+</div>
+
+<script>
+/* ===== 샘플 데이터 ===== */
+let BASE_HISTORY = [ // [연-월, 기준금리]
+  ["2024-01",3.50],["2024-04",3.50],["2024-07",3.50],["2024-10",3.25],["2024-11",3.00],
+  ["2025-01",3.00],["2025-02",2.75],["2025-05",2.50],["2025-08",2.50],["2025-11",2.50],
+  ["2026-02",2.50],["2026-05",2.50],["2026-08",2.50],["2026-10",2.50]
+];
+let BASE = BASE_HISTORY[BASE_HISTORY.length-1][1];
+
+let DEPOSITS = [
+  {bank:"제주은행",name:"J정기예금",rates:{6:[2.45,2.85],12:[2.55,3.00],24:[2.50,2.90]},pref:["모바일 가입 +0.20%p","급여이체 +0.25%p"]},
+  {bank:"카카오뱅크",name:"정기예금",rates:{6:[2.70,2.70],12:[2.80,2.80],24:[2.60,2.60]},pref:["우대조건 없음"]},
+  {bank:"토스뱅크",name:"먼저 이자 받는 예금",rates:{6:[2.65,2.65],12:[2.75,2.75],24:[2.55,2.55]},pref:["이자 선지급"]},
+  {bank:"KB국민은행",name:"KB Star 정기예금",rates:{6:[2.40,2.85],12:[2.50,2.95],24:[2.45,2.80]},pref:["KB스타뱅킹 가입 +0.15%p","자동이체 3건 +0.30%p"]},
+  {bank:"신한은행",name:"쏠편한 정기예금",rates:{6:[2.45,2.80],12:[2.55,2.90],24:[2.50,2.75]},pref:["첫 거래 +0.20%p","마케팅 동의 +0.15%p"]},
+  {bank:"하나은행",name:"하나의 정기예금",rates:{6:[2.40,2.90],12:[2.50,3.05],24:[2.45,2.85]},pref:["하나머니 연결 +0.25%p","카드 실적 +0.30%p"]},
+  {bank:"우리은행",name:"WON플러스 예금",rates:{6:[2.50,2.75],12:[2.60,2.85],24:[2.50,2.70]},pref:["비대면 가입 +0.25%p"]},
+  {bank:"NH농협은행",name:"NH올원e예금",rates:{6:[2.35,2.80],12:[2.45,2.95],24:[2.40,2.75]},pref:["올원뱅크 가입 +0.20%p","카드 사용 +0.30%p"]},
+  {bank:"케이뱅크",name:"코드K 정기예금",rates:{6:[2.75,2.75],12:[2.85,2.85],24:[2.65,2.65]},pref:["우대조건 없음"]},
+  {bank:"BNK부산은행",name:"더(The) 특판 정기예금",rates:{6:[2.60,3.05],12:[2.70,3.15],24:[2.55,2.95]},pref:["신규 고객 +0.25%p","오픈뱅킹 등록 +0.20%p"]}
+];
+
+let SAVINGS = [
+  {bank:"제주은행",name:"제주愛 적금",rates:{6:[2.80,3.60],12:[3.00,4.00],24:[3.00,3.80]},pref:["제주 거주 +0.50%p","자동이체 +0.50%p"],limit:"월 50만원"},
+  {bank:"KB국민은행",name:"KB 아이사랑 적금",rates:{6:[2.60,3.80],12:[2.80,4.30],24:[2.90,4.10]},pref:["다자녀(3자녀↑) +1.00%p","아동수당 입금 +0.50%p"],limit:"월 30만원"},
+  {bank:"신한은행",name:"쏠 적금",rates:{6:[2.70,3.40],12:[2.90,3.70],24:[2.90,3.50]},pref:["급여이체 +0.50%p","첫 적금 +0.30%p"],limit:"월 100만원"},
+  {bank:"하나은행",name:"하나 아이키움 적금",rates:{6:[2.50,3.50],12:[2.70,4.20],24:[2.80,4.00]},pref:["자녀 명의 +0.50%p","다자녀 +1.00%p"],limit:"월 20만원"},
+  {bank:"카카오뱅크",name:"자유적금",rates:{6:[3.00,3.20],12:[3.10,3.40],24:[3.00,3.30]},pref:["자동이체 +0.20%p"],limit:"월 300만원"},
+  {bank:"우리은행",name:"WON 적금",rates:{6:[2.60,3.30],12:[2.80,3.70],24:[2.80,3.50]},pref:["카드 실적 +0.60%p"],limit:"월 50만원"},
+  {bank:"NH농협은행",name:"NH 다자녀 적금",rates:{6:[2.60,3.70],12:[2.80,4.10],24:[2.90,4.00]},pref:["2자녀 +0.50%p, 3자녀↑ +1.00%p"],limit:"월 50만원"},
+  {bank:"토스뱅크",name:"키워봐요 적금",rates:{6:[3.00,3.50],12:[3.20,3.80],24:[3.10,3.60]},pref:["매주 자동저축 +0.30%p"],limit:"월 100만원"}
+];
+
+let LOANS = {
+  mortgage:[
+    {bank:"KB국민은행",name:"KB 주택담보대출(혼합형)",min:3.45,max:5.15,avg:3.98,type:"혼합(5년 고정)"},
+    {bank:"신한은행",name:"신한 주택담보대출",min:3.55,max:5.05,avg:4.05,type:"혼합(5년 고정)"},
+    {bank:"하나은행",name:"하나 아파트론",min:3.40,max:4.95,avg:3.92,type:"변동(6개월)"},
+    {bank:"우리은행",name:"우리 아파트론",min:3.60,max:5.10,avg:4.10,type:"혼합(5년 고정)"},
+    {bank:"NH농협은행",name:"NH 주택담보대출",min:3.50,max:5.30,avg:4.15,type:"변동(6개월)"},
+    {bank:"제주은행",name:"제주 주택담보대출",min:3.80,max:5.40,avg:4.30,type:"변동(6개월)"},
+    {bank:"카카오뱅크",name:"주택담보대출",min:3.35,max:4.80,avg:3.85,type:"혼합(5년 고정)"}
+  ],
+  jeonse:[
+    {bank:"KB국민은행",name:"KB 전세자금대출",min:3.30,max:4.90,avg:3.80,type:"변동(6개월)"},
+    {bank:"신한은행",name:"쏠편한 전세대출",min:3.40,max:4.85,avg:3.85,type:"변동(6개월)"},
+    {bank:"하나은행",name:"하나 전세론",min:3.35,max:4.95,avg:3.90,type:"변동(6개월)"},
+    {bank:"카카오뱅크",name:"전월세보증금 대출",min:3.20,max:4.60,avg:3.65,type:"변동(6개월)"},
+    {bank:"제주은행",name:"제주 전세자금대출",min:3.70,max:5.20,avg:4.20,type:"변동(6개월)"}
+  ],
+  credit:[
+    {bank:"카카오뱅크",name:"신용대출",min:4.10,max:9.80,avg:5.40,type:"변동(1년)"},
+    {bank:"토스뱅크",name:"신용대출",min:4.20,max:11.50,avg:5.90,type:"변동(1년)"},
+    {bank:"KB국민은행",name:"KB 직장인든든 신용대출",min:4.30,max:7.20,avg:4.95,type:"변동(1년)"},
+    {bank:"신한은행",name:"쏠편한 직장인대출",min:4.25,max:7.40,avg:5.05,type:"변동(1년)"},
+    {bank:"하나은행",name:"하나원큐 신용대출",min:4.40,max:8.10,avg:5.20,type:"변동(1년)"}
+  ]
+};
+
+/* 정책대출: 소득구간별 기본금리(10년 기준, 샘플) + 자녀 우대 */
+const POLICY = [
+  {id:"didim",name:"내집마련 디딤돌대출",org:"주택도시기금",purpose:"buy",
+   rule:p=>{const r=[];
+     const incomeCap = p.newlywed?8500 : (p.kids>=2?8500 : (p.first?7000:6000));
+     const priceCap = (p.newlywed||p.kids>=2)?60000:50000;
+     if(!p.homeless) r.push("무주택 세대주여야 해요");
+     if(p.income>incomeCap) r.push(`연소득 ${fmt(incomeCap)}만원 이하만 가능`);
+     if(p.price>priceCap) r.push(`주택가격 ${fmt(priceCap)}만원 이하만 가능`);
+     return {reasons:r, bands:[[2000,2.85],[4000,3.20],[6000,3.55],[8500,3.85]],
+       limit:(p.newlywed||p.kids>=2)?"최대 3.2억":(p.first?"최대 2.4억":"최대 2억"), cond:`소득 ${fmt(incomeCap)}만원·주택 ${fmt(priceCap)}만원 이하`};}},
+  {id:"baby-buy",name:"신생아 특례 디딤돌",org:"주택도시기금",purpose:"buy",
+   rule:p=>{const r=[];
+     if(!p.baby) r.push("대출 신청일 기준 2년 내 출산(입양) 가구만 가능");
+     if(!p.homeless) r.push("무주택 세대주여야 해요");
+     if(p.income>20000) r.push("연소득 2억원 이하만 가능");
+     if(p.price>90000) r.push("주택가격 9억원 이하만 가능");
+     return {reasons:r, bands:[[8500,1.80],[11000,2.70],[13000,3.30],[20000,4.30]], limit:"최대 4억", cond:"2년 내 출산·소득 2억·주택 9억 이하"};}},
+  {id:"bogeum",name:"보금자리론",org:"한국주택금융공사",purpose:"buy",
+   rule:p=>{const r=[];
+     const cap = p.kids>=3?10000 : (p.newlywed?8500:7000);
+     if(p.income>cap) r.push(`연소득 ${fmt(cap)}만원 이하만 가능`);
+     if(p.price>60000) r.push("주택가격 6억원 이하만 가능");
+     return {reasons:r, bands:[[99999,4.05]], limit:p.kids>=3?"최대 4억":"최대 3.6억", cond:`소득 ${fmt(cap)}만원·주택 6억 이하, 1주택자 처분조건 가능`};}},
+  {id:"butim",name:"버팀목 전세자금대출",org:"주택도시기금",purpose:"jeonse",
+   rule:p=>{const r=[];
+     const incomeCap = p.newlywed?7500:(p.kids>=2?6000:5000);
+     const depCap = p.region==="metro"?30000:20000;
+     if(!p.homeless) r.push("무주택 세대주여야 해요");
+     if(p.income>incomeCap) r.push(`연소득 ${fmt(incomeCap)}만원 이하만 가능`);
+     if(p.price>depCap) r.push(`보증금 ${fmt(depCap)}만원 이하만 가능`);
+     return {reasons:r, bands:[[2000,2.50],[4000,2.80],[6000,3.10],[7500,3.30]], limit:p.region==="metro"?"최대 1.2억":"최대 8천만원", cond:`소득 ${fmt(incomeCap)}만원·보증금 ${fmt(depCap)}만원 이하`};}},
+  {id:"youth",name:"청년전용 버팀목",org:"주택도시기금",purpose:"jeonse",
+   rule:p=>{const r=[];
+     if(p.age>34) r.push("만 19~34세만 가능");
+     if(!p.homeless) r.push("무주택 세대주여야 해요");
+     if(p.income>5000) r.push("연소득 5천만원 이하만 가능");
+     if(p.price>30000) r.push("보증금 3억원 이하만 가능");
+     return {reasons:r, bands:[[2000,2.20],[4000,2.50],[5000,2.80]], limit:"최대 2억", cond:"만 34세 이하·소득 5천·보증금 3억 이하"};}},
+  {id:"baby-jeonse",name:"신생아 특례 버팀목",org:"주택도시기금",purpose:"jeonse",
+   rule:p=>{const r=[];
+     if(!p.baby) r.push("대출 신청일 기준 2년 내 출산(입양) 가구만 가능");
+     if(!p.homeless) r.push("무주택 세대주여야 해요");
+     if(p.income>20000) r.push("연소득 2억원 이하만 가능");
+     const depCap = p.region==="metro"?50000:40000;
+     if(p.price>depCap) r.push(`보증금 ${fmt(depCap)}만원 이하만 가능`);
+     return {reasons:r, bands:[[8500,1.30],[11000,2.10],[13000,2.70],[20000,3.80]], limit:"최대 2.4억", cond:"2년 내 출산·소득 2억 이하"};}}
+];
+const KID_DISCOUNT = k => k>=3?0.7:k===2?0.5:k===1?0.3:0;
+
+/* ===== 공통 ===== */
+const $ = s=>document.querySelector(s);
+const fmt = n=>Math.round(n).toLocaleString("ko-KR");
+const pct = n=>n.toFixed(2)+"%";
+function seg(id,cb){
+  const el=$(id);
+  el.addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b) return;
+    el.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));
+    cb();
+  });
+}
+const segVal = id=>$(id).querySelector('[aria-pressed="true"]').dataset.v;
+
+/* ===== 기준금리 차트 ===== */
+function drawBase(){
+  const svg=$("#baseChart"), W=520,H=96,pad={l:34,r:10,t:10,b:20};
+  const ys=BASE_HISTORY.map(d=>d[1]), lo=Math.floor(Math.min(...ys)-0.5), hi=Math.ceil(Math.max(...ys)+0.5);
+  const x=i=>pad.l+i*(W-pad.l-pad.r)/(BASE_HISTORY.length-1);
+  const y=v=>pad.t+(hi-v)/(hi-lo)*(H-pad.t-pad.b);
+  let d=`M${x(0)},${y(ys[0])}`;
+  for(let i=1;i<ys.length;i++) d+=` H${x(i)} V${y(ys[i])}`;
+  const area=d+` V${y(lo)} H${x(0)} Z`;
+  const grid=[lo,(lo+hi)/2,hi].map(v=>`<line x1="${pad.l}" x2="${W-pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${pad.l-6}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--font-num)">${v.toFixed(1)}</text>`).join("");
+  const n=BASE_HISTORY.length-1, idx=[...new Set([0,Math.round(n/3),Math.round(2*n/3),n])];
+  const xl=idx.map(i=>`<text x="${x(i)}" y="${H-4}" text-anchor="${i===BASE_HISTORY.length-1?'end':'middle'}" font-size="10" fill="var(--muted)" font-family="var(--font-num)">${BASE_HISTORY[i][0].replace("-",".")}</text>`).join("");
+  const last=BASE_HISTORY.length-1;
+  svg.innerHTML=grid+`<path d="${area}" fill="var(--mark-soft)"/><path d="${d}" fill="none" stroke="var(--mark)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${x(last)}" cy="${y(ys[last])}" r="4" fill="var(--mark)"/>`+xl;
+  // 마지막 변경 시점
+  let ch=last; while(ch>0 && BASE_HISTORY[ch-1][1]===BASE) ch--;
+  const dir = ch>0 ? (BASE_HISTORY[ch-1][1]>BASE?"인하":"인상") : "변동 없이";
+  const [yy,mm]=BASE_HISTORY[ch][0].split("-"); $("#baseInfo").textContent= ch>0 ? `${yy}년 ${+mm}월 ${dir} 후 동결 중` : "기간 내 변동 없음";
+  $("#baseNow").textContent=pct(BASE);
+}
+
+const esc=t=>String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const prefList=p=>p.pref.filter(x=>x&&x.trim()).map(x=>`<li>${esc(x)}</li>`).join("")||"<li>정보 없음</li>";
+
+/* ===== 예금 ===== */
+function renderDeposit(){
+  const t=+segVal("#depTerm"), amt=+$("#depAmt").value||0, sort=$("#depSort").value;
+  const rows=DEPOSITS.filter(p=>p.rates[t]).map(p=>({...p,basic:p.rates[t][0],max:p.rates[t][1]}))
+    .sort((a,b)=>sort==="max"?b.max-a.max:b.basic-a.basic);
+  const scale=4;
+  $("#depList").innerHTML=rows.map(p=>{
+    const interest=amt*10000*p.max/100*t/12, after=interest*(1-0.154);
+    return `<article class="row">
+      <div><div class="name">${p.name}</div><div class="bank">${p.bank}</div></div>
+      <div class="rate num"><b>${pct(p.max)}</b><span class="basic">기본 ${pct(p.basic)}</span></div>
+      ${depositBar(p.basic,p.max,scale)}
+      <div class="meta"><span class="pill gap num">기준금리 ${p.max-BASE>=0?"+":""}${(p.max-BASE).toFixed(2)}%p</span>
+        <span>세후 이자 약 <b class="num">${fmt(after)}</b>원</span></div>
+      <details><summary>우대조건 보기</summary><ul>${prefList(p)}</ul></details>
+    </article>`;}).join("")||'<p class="muted">이 기간에 해당하는 상품이 없어요.</p>';
+}
+function depositBar(basic,max,scale){
+  const w=v=>Math.max(0,Math.min(100,v/scale*100));
+  return `<div class="bar" aria-hidden="true">
+    <div class="fill max" style="width:${w(max)}%"></div>
+    <div class="fill" style="width:${w(basic)}%"></div>
+    <div class="baseline" style="left:${w(BASE)}%"></div></div>`;
+}
+
+/* ===== 적금 ===== */
+function renderSavings(){
+  const t=+segVal("#savTerm"), m=(+$("#savAmt").value||0)*10000;
+  const rows=SAVINGS.filter(p=>p.rates[t]).map(p=>({...p,basic:p.rates[t][0],max:p.rates[t][1]})).sort((a,b)=>b.max-a.max);
+  $("#savList").innerHTML=rows.map(p=>{
+    const interest=m*(p.max/100/12)*t*(t+1)/2, after=interest*(1-0.154);
+    return `<article class="row">
+      <div><div class="name">${p.name}</div><div class="bank">${p.bank} · 납입한도 ${p.limit}</div></div>
+      <div class="rate num"><b>${pct(p.max)}</b><span class="basic">기본 ${pct(p.basic)}</span></div>
+      ${depositBar(p.basic,p.max,5)}
+      <div class="meta"><span class="pill gap num">기준금리 +${(p.max-BASE).toFixed(2)}%p</span>
+        <span>원금 <b class="num">${fmt(m*t)}</b>원 · 세후 이자 약 <b class="num">${fmt(after)}</b>원</span></div>
+      <details><summary>우대조건 보기</summary><ul>${prefList(p)}</ul></details>
+    </article>`;}).join("");
+}
+
+/* ===== 대출 ===== */
+function monthly(P,rate,years){const r=rate/100/12,n=years*12;return r===0?P/n:P*r/(1-Math.pow(1+r,-n));}
+function renderLoan(){
+  const type=segVal("#loanType"), P=(+$("#loanAmt").value||0)*10000, yrs=+$("#loanYears").value||1;
+  const rows=[...LOANS[type]].sort((a,b)=>a.avg-b.avg);
+  const scale=type==="credit"?12:6;
+  const w=v=>Math.max(0,Math.min(100,v/scale*100));
+  $("#loanList").innerHTML=rows.map(p=>`<article class="row">
+      <div><div class="name">${p.name}</div><div class="bank">${p.bank} · ${p.type}</div></div>
+      <div class="rate num"><b>${pct(p.avg)}</b><span class="basic">범위 ${p.min.toFixed(2)}~${p.max.toFixed(2)}%</span></div>
+      <div class="bar" aria-hidden="true">
+        <div class="fill" style="left:${w(p.min)}%;width:${w(p.max)-w(p.min)}%"></div>
+        <div class="fill max" style="left:${w(p.avg)-0.6}%;width:1.2%"></div>
+        <div class="baseline" style="left:${w(BASE)}%"></div></div>
+      <div class="meta"><span class="pill gap num">기준금리 +${(p.avg-BASE).toFixed(2)}%p</span>
+        <span>평균금리로 원리금균등 상환 시 월 <b class="num">${fmt(monthly(P,p.avg,yrs))}</b>원</span></div>
+    </article>`).join("");
+}
+
+/* ===== 정책대출 ===== */
+function renderPolicy(){
+  const p={purpose:$("#pPurpose").value,income:+$("#pIncome").value||0,price:+$("#pPrice").value||0,
+    kids:+$("#pKids").value,age:+$("#pAge").value||0,region:$("#pRegion").value,
+    homeless:$("#pHomeless").checked,first:$("#pFirst").checked,newlywed:$("#pNewlywed").checked,baby:$("#pBaby").checked};
+  const list=POLICY.filter(x=>x.purpose===p.purpose).map(x=>{
+    const res=x.rule(p);
+    const band=res.bands.find(b=>p.income<=b[0])||res.bands[res.bands.length-1];
+    const disc=KID_DISCOUNT(p.kids);
+    const rate=Math.max(1.2,band[1]-disc);
+    return {...x,...res,base:band[1],disc,rate,ok:res.reasons.length===0};
+  }).sort((a,b)=>(b.ok-a.ok)||(a.rate-b.rate));
+  $("#policyList").innerHTML=list.map(x=>`<article class="pcard ${x.ok?"":"no"}">
+      <div class="head"><div><h3>${x.name}</h3><div class="small muted">${x.org} · ${x.cond}</div></div>
+        <span class="status ${x.ok?"ok":"ng"}">${x.ok?"신청 가능":"조건 안 맞음"}</span></div>
+      ${x.ok?`<div class="rate"><b class="num">${pct(x.rate)}</b> <span class="small muted">기본 ${pct(x.base)}${x.disc?` − 자녀 우대 ${x.disc.toFixed(1)}%p`:""} · ${x.limit}</span></div>`
+        :`<ul class="reasons">${x.reasons.map(r=>`<li>${r}</li>`).join("")}</ul>`}
+    </article>`).join("")
+    + `<div class="calc">예상 금리는 소득 구간 기본금리에서 자녀 수 우대만 뺀 값이에요. 실제로는 청약통장·전자계약 등 추가 우대와 대출기간에 따라 달라져요.</div>`;
+}
+
+/* ===== 탭 ===== */
+const TABS=["deposit","savings","loan","policy"];
+function showTab(name){
+  if(!TABS.includes(name)) name="deposit";
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.tab===name?"true":"false"));
+  TABS.forEach(t=>$("#panel-"+t).hidden=t!==name);
+}
+document.querySelector(".tabs").addEventListener("click",e=>{
+  const t=e.target.closest(".tab"); if(!t) return;
+  location.hash=t.dataset.tab; showTab(t.dataset.tab);
+});
+window.addEventListener("hashchange",()=>showTab(location.hash.slice(1)));
+
+seg("#depTerm",renderDeposit); seg("#savTerm",renderSavings); seg("#loanType",renderLoan);
+["#depAmt","#depSort"].forEach(s=>$(s).addEventListener("input",renderDeposit));
+$("#savAmt").addEventListener("input",renderSavings);
+["#loanAmt","#loanYears"].forEach(s=>$(s).addEventListener("input",renderLoan));
+document.querySelectorAll("#panel-policy input,#panel-policy select").forEach(el=>el.addEventListener("input",renderPolicy));
+document.querySelectorAll("#panel-policy input[type=checkbox]").forEach(el=>el.addEventListener("change",renderPolicy));
+
+/* ===== 실제 데이터 불러오기 (Vercel /api) ===== */
+const num=v=>v===null||v===undefined||v===""?null:Number(v);
+function toDepositLike(data){
+  const map=new Map();
+  data.baseList.forEach(b=>map.set(b.fin_prdt_cd+"|"+b.fin_co_no,{bank:b.fin_co_nm,name:b.fin_prdt_nm,rates:{},
+    pref:String(b.spcl_cnd||"").split(/\n|(?=\d\.\s)/).map(x=>x.trim()),
+    limit:b.max_limit?`월 ${fmt(b.max_limit/10000)}만원`:"납입한도 정보 없음", join:b.join_way}));
+  data.optionList.forEach(o=>{
+    const p=map.get(o.fin_prdt_cd+"|"+o.fin_co_no); if(!p) return;
+    const t=Number(o.save_trm); if(![6,12,24].includes(t)) return;
+    const basic=num(o.intr_rate), max=num(o.intr_rate2)??basic; if(basic===null&&max===null) return;
+    const cur=p.rates[t];
+    if(!cur||max>cur[1]) p.rates[t]=[basic??max,max];
+  });
+  return [...map.values()].filter(p=>Object.keys(p.rates).length);
+}
+function toLoans(data,kind){
+  const map=new Map();
+  data.baseList.forEach(b=>map.set(b.fin_prdt_cd+"|"+b.fin_co_no,{bank:b.fin_co_nm,name:b.fin_prdt_nm,mins:[],maxs:[],avgs:[],types:new Set()}));
+  data.optionList.forEach(o=>{
+    const p=map.get(o.fin_prdt_cd+"|"+o.fin_co_no); if(!p) return;
+    if(kind==="credit"){
+      if(o.crdt_lend_rate_type!=="A") return; // 대출금리 행만
+      const g=["crdt_grad_1","crdt_grad_4","crdt_grad_5","crdt_grad_6","crdt_grad_10","crdt_grad_11","crdt_grad_12","crdt_grad_13"].map(k=>num(o[k])).filter(v=>v>0);
+      if(g.length){p.mins.push(Math.min(...g));p.maxs.push(Math.max(...g));}
+      if(num(o.crdt_grad_avg)>0) p.avgs.push(num(o.crdt_grad_avg));
+      p.types.add(o.crdt_prdt_type_nm);
+    }else{
+      if(num(o.lend_rate_min)>0) p.mins.push(num(o.lend_rate_min));
+      if(num(o.lend_rate_max)>0) p.maxs.push(num(o.lend_rate_max));
+      if(num(o.lend_rate_avg)>0) p.avgs.push(num(o.lend_rate_avg));
+      if(o.lend_rate_type_nm) p.types.add(o.lend_rate_type_nm);
+    }
+  });
+  return [...map.values()].filter(p=>p.mins.length).map(p=>{
+    const min=Math.min(...p.mins), max=Math.max(...p.maxs,min);
+    const avg=p.avgs.length?p.avgs.reduce((a,b)=>a+b,0)/p.avgs.length:(min+max)/2;
+    return {bank:p.bank,name:p.name,min,max,avg,type:[...p.types].join("·")||"-"};
+  });
+}
+async function getJSON(u){const r=await fetch(u);if(!r.ok) throw new Error(u+" "+r.status);return r.json();}
+async function loadLive(){
+  if(!/^https?:/.test(location.protocol)) return;
+  const results=await Promise.allSettled([
+    getJSON("/api/base-rate"),
+    getJSON("/api/finlife?type=deposit"),getJSON("/api/finlife?type=saving"),
+    getJSON("/api/finlife?type=mortgage"),getJSON("/api/finlife?type=rent"),getJSON("/api/finlife?type=credit")
+  ]);
+  const [base,dep,sav,mort,rent,cred]=results.map(r=>r.status==="fulfilled"?r.value:null);
+  let ok=0;
+  if(base?.history?.length){BASE_HISTORY=base.history;BASE=BASE_HISTORY[BASE_HISTORY.length-1][1];ok++;}
+  if(dep){DEPOSITS=toDepositLike(dep);ok++;}
+  if(sav){SAVINGS=toDepositLike(sav);ok++;}
+  if(mort){LOANS.mortgage=toLoans(mort,"mortgage");ok++;}
+  if(rent){LOANS.jeonse=toLoans(rent,"rent");ok++;}
+  if(cred){LOANS.credit=toLoans(cred,"credit");ok++;}
+  if(!ok) return;
+  const chip=$("#dataChip");
+  if(ok===6){chip.textContent="실시간 공시 데이터";chip.style.background="var(--accent-soft)";chip.style.color="var(--accent)";
+    $("#srcNote").textContent="예·적금·대출은 금융감독원 공시 기준(매월 갱신)이며, 은행 창구 금리와 다를 수 있어요.";}
+  else{chip.textContent="일부만 실제 데이터";$("#srcNote").textContent="일부 데이터를 불러오지 못해 해당 탭은 샘플로 표시돼요.";}
+  drawBase(); renderDeposit(); renderSavings(); renderLoan(); renderPolicy();
+}
+
+drawBase(); renderDeposit(); renderSavings(); renderLoan(); renderPolicy();
+loadLive();
+showTab(location.hash.slice(1));
+</script>
+</body>
+</html>
